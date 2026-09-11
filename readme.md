@@ -1,0 +1,1 @@
+to see user data logs - sudo cat /var/log/urjasathi-user-data.log
