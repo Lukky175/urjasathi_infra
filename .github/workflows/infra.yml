@@ -1,0 +1,65 @@
+name: Infrastructure CI
+
+on:
+
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+
+  terraform:
+
+    name: Terraform Validation
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+
+      # --------------------------------------
+      # Checkout
+      # --------------------------------------
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+
+      # --------------------------------------
+      # Setup Terraform
+      # --------------------------------------
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+
+      # --------------------------------------
+      # Terraform Format
+      # --------------------------------------
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+
+      # --------------------------------------
+      # Terraform Init
+      # --------------------------------------
+
+      - name: Terraform Init
+        run: terraform init
+
+
+      # --------------------------------------
+      # Terraform Validate
+      # --------------------------------------
+
+      - name: Terraform Validate
+        run: terraform validate
