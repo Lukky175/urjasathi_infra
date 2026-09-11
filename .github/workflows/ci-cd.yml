@@ -1,8 +1,6 @@
 name: UrjaSathi CI/CD
 
-
 on:
-
   push:
     branches:
       - main
@@ -24,8 +22,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
-
     steps:
+
+      # --------------------------------------
+      # Checkout
+      # --------------------------------------
 
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -37,7 +38,6 @@ jobs:
 
       - name: Setup Node
         uses: actions/setup-node@v4
-
         with:
           node-version: 22
           cache: npm
@@ -46,13 +46,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-
         run: npm ci
 
 
       - name: Build frontend
         working-directory: frontend
-
         run: npm run build
 
 
@@ -62,14 +60,12 @@ jobs:
 
       - name: Setup Python
         uses: actions/setup-python@v5
-
         with:
           python-version: "3.12"
 
 
       - name: Install backend dependencies
         working-directory: backend
-
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -114,32 +110,40 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Use the GitHub Environment containing
+    # DOCKERHUB_USERNAME and DOCKERHUB_TOKEN
+    environment: DOCKERHUB_USERNAME
 
     steps:
+
+      # --------------------------------------
+      # Checkout
+      # --------------------------------------
 
       - name: Checkout source code
         uses: actions/checkout@v4
 
 
       # --------------------------------------
-      # DockerHub
-      # --------------------------------------
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-
-      # --------------------------------------
-      # Image tag
+      # Set image tag
       # --------------------------------------
 
       - name: Set image tag
         run: |
           echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+          echo "Image tag: ${GITHUB_SHA}"
+
+
+      # --------------------------------------
+      # Login to DockerHub
+      # --------------------------------------
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
 
       # --------------------------------------
@@ -190,13 +194,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
-
     permissions:
-
       id-token: write
-
       contents: read
-
 
     steps:
 
@@ -206,43 +206,50 @@ jobs:
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
-
         with:
-
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
-
           aws-region: ${{ secrets.AWS_REGION }}
 
 
       # --------------------------------------
-      # Deploy using SSM
+      # Deploy using AWS SSM
       # --------------------------------------
 
       - name: Deploy containers through SSM
-
         run: |
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy UrjaSathi $GITHUB_SHA" \
+            --comment "Deploy UrjaSathi ${GITHUB_SHA}" \
             --parameters commands='[
               "cd /opt/urjasathi",
               "export IMAGE_TAG='${GITHUB_SHA}'",
               "docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml pull",
               "docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d",
-              "docker image prune -f"
+              "docker image prune -f",
+              "sleep 10",
+              "curl --fail http://localhost/api/health"
             ]' \
             --query "Command.CommandId" \
             --output text)
 
+
           echo "SSM Command ID: $COMMAND_ID"
 
+
+          # --------------------------------------
+          # Wait for SSM command
+          # --------------------------------------
 
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
 
+
+          # --------------------------------------
+          # Check deployment status
+          # --------------------------------------
 
           STATUS=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
@@ -250,15 +257,30 @@ jobs:
             --query "Status" \
             --output text)
 
+
           echo "Deployment status: $STATUS"
 
 
+          # --------------------------------------
+          # Fail workflow if deployment failed
+          # --------------------------------------
+
           if [ "$STATUS" != "Success" ]; then
+
             echo "Deployment failed."
+
+            echo "========== SSM OUTPUT =========="
 
             aws ssm get-command-invocation \
               --command-id "$COMMAND_ID" \
               --instance-id "${{ secrets.EC2_INSTANCE_ID }}"
 
             exit 1
+
           fi
+
+
+          echo "======================================"
+          echo "UrjaSathi deployment successful!"
+          echo "Commit: ${GITHUB_SHA}"
+          echo "======================================"
