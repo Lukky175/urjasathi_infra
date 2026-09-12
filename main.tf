@@ -351,49 +351,66 @@ resource "aws_iam_role" "urjasathi_app_deploy" {
 
 }
 
-
 # ============================================================
-# APPLICATION REPOSITORY → SSM PERMISSIONS
+# APPLICATION REPOSITORY → AWS PERMISSIONS
+#
+# Allows GitHub Actions to:
+#
+# 1. Find the UrjaSathi EC2 instance by tag
+# 2. Send deployment commands through SSM
+# 3. Check deployment status
 # ============================================================
 
 resource "aws_iam_role_policy" "urjasathi_app_deploy" {
-
   name = "${var.project_name}-app-deploy-policy"
-
   role = aws_iam_role.urjasathi_app_deploy.id
 
-
   policy = jsonencode({
-
     Version = "2012-10-17"
-
 
     Statement = [
 
-      {
+      # --------------------------------------------------------
+      # EC2 INSTANCE DISCOVERY
+      #
+      # GitHub Actions searches for:
+      #
+      # Name = urjasathi
+      # State = running
+      #
+      # This means we do NOT need EC2_INSTANCE_ID
+      # as a GitHub secret.
+      # --------------------------------------------------------
 
+      {
         Effect = "Allow"
 
-
         Action = [
-
-          "ssm:SendCommand",
-
-          "ssm:GetCommandInvocation",
-
-          "ssm:ListCommandInvocations",
-
-          "ssm:ListCommands"
-
+          "ec2:DescribeInstances"
         ]
 
+        Resource = "*"
+      },
+
+      # --------------------------------------------------------
+      # AWS SYSTEMS MANAGER
+      #
+      # Used by GitHub Actions to execute deployment commands
+      # on the EC2 instance without SSH.
+      # --------------------------------------------------------
+
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation",
+          "ssm:ListCommandInvocations",
+          "ssm:ListCommands"
+        ]
 
         Resource = "*"
-
       }
-
     ]
-
   })
-
 }
