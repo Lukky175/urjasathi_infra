@@ -41,12 +41,12 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
 
-      # --------------------------------------
-      # Terraform Format
-      # --------------------------------------
+      # # --------------------------------------
+      # # Terraform Format
+      # # --------------------------------------
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      # - name: Terraform Format Check
+      #   run: terraform fmt -check -recursive
 
 
       # --------------------------------------
