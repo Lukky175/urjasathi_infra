@@ -38,6 +38,24 @@ resource "aws_vpc" "urjasathi" {
   }
 }
 
+# ============================================================
+# Static IP
+# ============================================================
+
+resource "aws_eip" "urjasathi" {
+  domain = "vpc"
+
+  tags = {
+    Name    = "${var.project_name}-eip"
+    Project = var.project_name
+  }
+}
+
+resource "aws_eip_association" "urjasathi" {
+  instance_id   = aws_instance.urjasathi.id
+  allocation_id = aws_eip.urjasathi.id
+}
+
 
 # ============================================================
 # INTERNET GATEWAY
@@ -163,11 +181,13 @@ resource "aws_security_group" "urjasathi" {
     ]
   }
 
-  # ----------------------------------------------------------
-  # NO SSH
-  #
-  # Access is through AWS Systems Manager.
-  # ----------------------------------------------------------
+  ingress {
+  description = "HTTPS"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+}
 
   # ----------------------------------------------------------
   # OUTBOUND
